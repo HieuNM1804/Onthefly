@@ -42,6 +42,18 @@ class SelfAttention(nn.Module):
         for x in self.parameters():
             x.requires_grad = False
 
+
+class IdentityAttention(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super(IdentityAttention, self).__init__()
+
+    def forward(self, x):
+        return x
+
+    def fix_weights(self):
+        for x in self.parameters():
+            x.requires_grad = False
+
     
 class SketchAttention(nn.Module):
     def __init__(self, args):
@@ -89,7 +101,7 @@ class Linear_global(nn.Module):
 
     def forward(self, x):
         x = self.dropout(x)
-        return F.normalize(self.head_layer(x))
+        return F.normalize(self.head_layer(x), dim=-1)
     
     def fix_weights(self):
         for x in self.parameters():

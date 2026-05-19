@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import torch
 import torch.nn as nn
 import torch.utils.data as data
@@ -35,10 +36,7 @@ def evaluate_model(model, dataloader_test):
             # print(batch['sketch_imgs'].shape) # (1, 25, 3, 299, 299)
             
             for data_sketch in batch['sketch_imgs']:
-                sketch_feature = model.sketch_embedding_network(
-                    data_sketch.to(device))
-                sketch_feature = model.sketch_attention(sketch_feature)
-                # sketch_feature = model.sketch_linear(sketch_feature)
+                sketch_feature = model.encode_sketch_base(data_sketch.to(device))
                 
                 # print("sketch_feature.shape: ", sketch_feature.shape) #(25, 2048)
                 sketch_features_all = torch.cat(
@@ -49,10 +47,7 @@ def evaluate_model(model, dataloader_test):
             sketch_names.extend(batch['sketch_path'])
 
             if batch['positive_path'][0] not in image_names:
-                positive_feature = model.sample_embedding_network(
-                    batch['positive_img'].to(device))
-                positive_feature = model.linear(
-                    model.attention(positive_feature))
+                positive_feature = model.encode_sample(batch['positive_img'].to(device))
                 # positive_feature, _ = model.attention(
                 #     model.sample_embedding_network(batch['positive_img'].to(device)))
                 image_array_tests = torch.cat(
@@ -124,7 +119,9 @@ def train_model(model, args):
     model = model.to(device)
     dataloader_train, dataloader_test = get_dataloader(args)
     if args.load_pretrained:
-        model.load_state_dict(torch.load(args.pretrained_dir), strict=False)
+        model.load_state_dict(torch.load(args.pretrained_dir, map_location=device, weights_only=True), strict=False)
+
+    os.makedirs(args.save_dir, exist_ok=True)
 
     loss_fn = nn.TripletMarginLoss(margin=args.margin)
     # optimizer = optim.Adam(params=model.parameters(), lr=args.lr)
@@ -145,19 +142,18 @@ def train_model(model, args):
             model.sketch_attention.eval()
             model.attention.eval()
             model.linear.eval()
+            model.sketch_linear.eval()
             model.attn.train()
             # model.sketch_linear.train()
             optimizer.zero_grad()
-            positive_features = model.sample_embedding_network(batch_data['positive_img'].to(device))
-            negative_features = model.sample_embedding_network(batch_data['negative_img'].to(device))
-            positive_features = model.linear(model.attention(positive_features))
-            negative_features = model.linear(model.attention(negative_features))
+            positive_features = model.encode_sample(batch_data['positive_img'].to(device))
+            negative_features = model.encode_sample(batch_data['negative_img'].to(device))
             
             loss = 0
             
             for idx in range(len(batch_data['sketch_imgs'])): # len(batch_data['sketch_imgs']) = batch_size
-                sketch_seq_feature = model.sketch_embedding_network(batch_data['sketch_imgs'][idx].to(device))
-                sketch_seq_feature = model.attn(model.sketch_attention(sketch_seq_feature))
+                sketch_seq_feature = model.encode_sketch_base(batch_data['sketch_imgs'][idx].to(device))
+                sketch_seq_feature = model.attn(sketch_seq_feature)
                 
                 positive_feature = positive_features[idx]
                 negative_feature = negative_features[idx]
@@ -179,12 +175,12 @@ def train_model(model, args):
         top1_eval, top5_eval, top10_eval, meanA, meanB, meanOurA, meanOurB = evaluate_model(model=model, dataloader_test=dataloader_test)
         if top5_eval > top5:
             top5 = top5_eval
-            torch.save(model.state_dict(), "best_top5_model.pth")
+            torch.save(model.state_dict(), os.path.join(args.save_dir, args.dataset_name + "_stage2_best_top5.pth"))
         if top10_eval > top10:
             top10 = top10_eval
-            torch.save(model.state_dict(), "best_top10_model.pth")
+            torch.save(model.state_dict(), os.path.join(args.save_dir, args.dataset_name + "_stage2_best_top10.pth"))
             
-        torch.save(model.state_dict(), "last_model.pth")
+        torch.save(model.state_dict(), os.path.join(args.save_dir, args.dataset_name + "_stage2_last_model.pth"))
         print('Top 1 accuracy : {:.5f}'.format(top1_eval))
         print('Top 5 accuracy : {:.5f}'.format(top5_eval))
         print('Top 10 accuracy: {:.5f}'.format(top10_eval))
@@ -193,6 +189,6 @@ def train_model(model, args):
         print('meanOurA       : {:.5f}'.format(meanOurA))
         print('meanOurB       : {:.5f}'.format(meanOurB))
         print('Loss           : {:.5f}'.format(avg_loss))
-        with open("results_log.txt", "a") as f:
+        with open(os.path.join(args.save_dir, args.dataset_name + "_stage2_results_log.txt"), "a") as f:
             f.write("Epoch {:d} | Top1: {:.5f} | Top5: {:.5f} | Top10: {:.5f} | MeanA: {:.5f} | MeanB: {:.5f} | meanOurA: {:.5f} | meanOurB: {:.5f} \n".format(
                 i_epoch+1, top1_eval, top5_eval, top10_eval, meanA, meanB, meanOurA, meanOurB))

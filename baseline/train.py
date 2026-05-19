@@ -37,10 +37,7 @@ def evaluate_model(model, dataloader_test, args):
             # print(batch['sketch_imgs'].shape) # (1, 25, 3, 299, 299)
             
             for data_sketch in batch['sketch_imgs']:
-                sketch_feature = model.sketch_embedding_network(
-                    data_sketch.to(device))
-                if args.backbone != "ViT":
-                    sketch_feature = model.sketch_linear(model.sketch_attention(sketch_feature)) #(25, 2048)
+                sketch_feature = model.encode_sketch(data_sketch.to(device))
                 
                 sketch_features_all = torch.cat((sketch_features_all, sketch_feature.detach()))
 
@@ -49,10 +46,7 @@ def evaluate_model(model, dataloader_test, args):
             sketch_names.extend(batch['sketch_path'])
 
             if batch['positive_path'][0] not in image_names:
-                positive_feature = model.sample_embedding_network(batch['positive_img'].to(device))
-                
-                if args.backbone != "ViT":
-                    positive_feature = model.linear(model.attention(positive_feature))
+                positive_feature = model.encode_sample(batch['positive_img'].to(device))
                 
                 image_array_tests = torch.cat((image_array_tests, positive_feature))
                 image_names.extend(batch['positive_path'])
@@ -98,11 +92,35 @@ def get_unique_filename(save_dir, base_name="results_log.txt"):
         filename = f"{name}_{counter}{ext}"
     return filename
 
+
+def save_component_states(model, save_dir, dataset_name, rank_name, update_stage2_alias=False):
+    backbone_state = {
+        'sample_embedding_network': model.sample_embedding_network.state_dict(),
+        'sketch_embedding_network': model.sketch_embedding_network.state_dict(),
+    }
+    attention_state = {
+        'attention': model.attention.state_dict(),
+        'sketch_attention': model.sketch_attention.state_dict(),
+    }
+    linear_state = {
+        'linear': model.linear.state_dict(),
+        'sketch_linear': model.sketch_linear.state_dict(),
+    }
+
+    torch.save(backbone_state, os.path.join(save_dir, f"{dataset_name}_{rank_name}_backbone.pth"))
+    torch.save(attention_state, os.path.join(save_dir, f"{dataset_name}_{rank_name}_attention.pth"))
+    torch.save(linear_state, os.path.join(save_dir, f"{dataset_name}_{rank_name}_linear.pth"))
+
+    if update_stage2_alias:
+        torch.save(backbone_state, os.path.join(save_dir, f"{dataset_name}_backbone.pth"))
+        torch.save(attention_state, os.path.join(save_dir, f"{dataset_name}_attention.pth"))
+        torch.save(linear_state, os.path.join(save_dir, f"{dataset_name}_linear.pth"))
+
 def train_model(model, args):
     model = model.to(device)
     dataloader_train, dataloader_test = get_dataloader(args)
     if args.load_pretrained:
-        model.load_state_dict(torch.load(args.pretrained_dir), strict=False)
+        model.load_state_dict(torch.load(args.pretrained_dir, map_location=device), strict=False)
     os.makedirs(args.save_dir, exist_ok=True)
     filename = get_unique_filename(args.save_dir, "results_log.txt")
     
@@ -138,31 +156,14 @@ def train_model(model, args):
         if top5_eval > top5:
             top5 = top5_eval
             torch.save(model.state_dict(), os.path.join(args.save_dir, args.dataset_name + '_best_top5.pth'))
-            torch.save({
-                        'sample_embedding_network': model.sample_embedding_network.state_dict(),
-                        'sketch_embedding_network': model.sketch_embedding_network.state_dict(),
-                    }, args.dataset_name + '_top5_backbone.pth')
-            torch.save({'attention': model.attention.state_dict(),
-                            'sketch_attention': model.sketch_attention.state_dict(),
-                            }, args.dataset_name + '_top5_attention.pth')
-            torch.save({'linear': model.linear.state_dict(),
-                            'sketch_linear': model.sketch_linear.state_dict(),
-                            }, args.dataset_name + '_top5_linear.pth')
+            save_component_states(model, args.save_dir, args.dataset_name, 'top5')
 
         if top10_eval > top10:
             top10 = top10_eval
             torch.save(model.state_dict(), os.path.join(args.save_dir, args.dataset_name + '_best_top10.pth'))
-            torch.save({
-                        'sample_embedding_network': model.sample_embedding_network.state_dict(),
-                        'sketch_embedding_network': model.sketch_embedding_network.state_dict(),
-                    }, args.dataset_name + '_top10_backbone.pth')
-            torch.save({'attention': model.attention.state_dict(),
-                            'sketch_attention': model.sketch_attention.state_dict(),
-                            }, args.dataset_name + '_top10_attention.pth')
-            torch.save({'linear': model.linear.state_dict(),
-                            'sketch_linear': model.sketch_linear.state_dict(),
-                            }, args.dataset_name + '_top10_linear.pth')
+            save_component_states(model, args.save_dir, args.dataset_name, 'top10', update_stage2_alias=True)
             
+        torch.save(model.state_dict(), os.path.join(args.save_dir, args.dataset_name + "_last_model.pth"))
         torch.save(model.state_dict(), os.path.join(args.save_dir, "last_model.pth"))
         
         

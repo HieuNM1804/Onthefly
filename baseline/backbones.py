@@ -3,9 +3,39 @@ import torch.nn as nn
 import torchvision.models as models
 import torch.nn.functional as F
 
-from torchvision.models import Inception_V3_Weights, vit_b_32, ViT_B_32_Weights, resnet50, ResNet50_Weights
+from torchvision.models import (
+    Inception_V3_Weights,
+    ResNet50_Weights,
+    ViT_B_16_Weights,
+    ViT_B_32_Weights,
+    resnet50,
+    vit_b_16,
+    vit_b_32,
+)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def is_vit_backbone(backbone_name):
+    return str(backbone_name).lower() in {"vit", "vits", "vit_s", "vit-small", "vit_small"}
+
+
+def get_backbone_feature_dim(backbone_name):
+    return 384 if str(backbone_name).lower() in {"vits", "vit_s", "vit-small", "vit_small"} else 768 if is_vit_backbone(backbone_name) else 2048
+
+
+def build_backbone(args):
+    backbone_name = str(args.backbone)
+    normalized_name = backbone_name.lower()
+    if normalized_name == "inceptionv3":
+        return InceptionV3(args)
+    if normalized_name == "resnet50":
+        return ResNet50(args)
+    if normalized_name == "vit":
+        return ViT(args)
+    if normalized_name in {"vits", "vit_s", "vit-small", "vit_small"}:
+        return ViTS(args)
+    raise ValueError(f"Unsupported backbone: {backbone_name}")
 
 class InceptionV3(nn.Module):
     def __init__(self, args):
@@ -86,7 +116,11 @@ class ViT(nn.Module):
         super(ViT, self).__init__()
         self.args = args
 
-        backbone = vit_b_32(weights=ViT_B_32_Weights.DEFAULT)
+        vit_variant = getattr(args, "vit_variant", "b16")
+        if str(vit_variant).lower() in {"b32", "vit_b_32"}:
+            backbone = vit_b_32(weights=ViT_B_32_Weights.DEFAULT)
+        else:
+            backbone = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
 
         # Giữ lại các layer của ViT (bỏ classification head)
         self.patch_embedding  = backbone.conv_proj       # Conv2d patch projection
@@ -96,42 +130,46 @@ class ViT(nn.Module):
         self.encoder_layers   = backbone.encoder.layers  # 12 transformer blocks
         self.ln               = backbone.encoder.ln      # LayerNorm cuối
 
-        # ViT-B/32 với input 224x224 → 7x7 = 49 patches, hidden_dim = 768
-        self.num_patches = 49   # 7x7
-        self.grid_size   = 7
-        self.hidden_dim  = 768
+        self.hidden_dim = 768
 
     def forward(self, x):
-        # x: (N, 3, 224, 224)
         B = x.shape[0]
 
-        # Patch embedding: (N, 768, 7, 7) → flatten → (N, 49, 768)
-        x = self.patch_embedding(x)                        # (N, 768, 7, 7)
-        x = x.flatten(2).transpose(1, 2)                  # (N, 49, 768)
+        x = self.patch_embedding(x)
+        x = x.flatten(2).transpose(1, 2)
 
-        # Thêm CLS token: (N, 50, 768)
-        cls_token = self.class_token.expand(B, -1, -1)    # (N, 1, 768)
-        x = torch.cat([cls_token, x], dim=1)              # (N, 50, 768)
+        cls_token = self.class_token.expand(B, -1, -1)
+        x = torch.cat([cls_token, x], dim=1)
 
-        # Positional embedding + dropout
-        x = self.dropout(x + self.pos_embedding)          # (N, 50, 768)
+        x = self.dropout(x + self.pos_embedding)
 
-        # Qua các transformer block
-        x = self.encoder_layers(x)                        # (N, 50, 768)
-        x = self.ln(x)                                    # (N, 50, 768)
+        x = self.encoder_layers(x)
+        x = self.ln(x)
 
-        cls_token = x[:, 0, :]                            # (N, 768)
+        cls_token = x[:, 0, :]
 
-        return cls_token
-        # # Bỏ CLS token, lấy 49 patch tokens
-        # patch_tokens = x[:, 1:, :]                        # (N, 49, 768)
+        return F.normalize(cls_token, dim=-1)
 
-        # # Reshape về spatial feature map giống InceptionV3
-        # x = patch_tokens.transpose(1, 2)                  # (N, 768, 49)
-        # x = x.reshape(B, self.hidden_dim,
-        #                self.grid_size, self.grid_size)    # (N, 768, 7, 7)
+    def fix_weights(self):
+        for param in self.parameters():
+            param.requires_grad = False
 
-        # return x   # Tương đương (N, 2048, 8, 8) của InceptionV3
+
+class ViTS(nn.Module):
+    def __init__(self, args):
+        super(ViTS, self).__init__()
+        try:
+            import timm
+        except ImportError as exc:
+            raise ImportError("ViTS requires timm. Install it with: pip install timm") from exc
+
+        self.args = args
+        self.model_name = getattr(args, "vits_model_name", "vit_small_patch16_224.augreg_in1k")
+        self.model = timm.create_model(self.model_name, pretrained=True, num_classes=0)
+        self.hidden_dim = self.model.num_features
+
+    def forward(self, x):
+        return F.normalize(self.model(x), dim=-1)
 
     def fix_weights(self):
         for param in self.parameters():

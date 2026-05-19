@@ -5,9 +5,24 @@ from baseline.train import train_model
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+def str2bool(value):
+    if isinstance(value, bool):
+        return value
+    value = value.lower()
+    if value in ("true", "1", "yes", "y"):
+        return True
+    if value in ("false", "0", "no", "n"):
+        return False
+    raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
 if __name__ == "__main__":
     parsers = argparse.ArgumentParser(description='Baseline Fine-Grained SBIR model')
-    parsers.add_argument('--backbone', type=str, default='InceptionV3', help="InceptionV3/ViT/ResNet50")
+    parsers.add_argument('--backbone', type=str, default='ViTS', help="InceptionV3/ViT/ViTS/ResNet50")
+    parsers.add_argument('--vit_variant', type=str, default='b16', help="b16/b32 for torchvision ViT")
+    parsers.add_argument('--vits_model_name', type=str, default='vit_small_patch16_224.augreg_in1k',
+                         help="timm ViT-S ImageNet checkpoint")
     parsers.add_argument('--dataset_name', type=str, default='ShoeV2')
     parsers.add_argument('--output_size', type=int, default=64)
     parsers.add_argument('--num_heads', type=int, default=8)
@@ -15,9 +30,9 @@ if __name__ == "__main__":
     parsers.add_argument('--pretrained_dir', type=str, default='/kaggle/input/base_ae_model/pytorch/default/1/best_model.pth')
     parsers.add_argument('--save_dir', type=str, default='/kaggle/working/')
     
-    parsers.add_argument('--use_kaiming_init', type=bool, default=True)
-    parsers.add_argument('--load_pretrained', type=bool, default=False)
-    parsers.add_argument('--use_info', type=bool, default=False)
+    parsers.add_argument('--use_kaiming_init', type=str2bool, nargs='?', const=True, default=True)
+    parsers.add_argument('--load_pretrained', type=str2bool, nargs='?', const=True, default=False)
+    parsers.add_argument('--use_info', type=str2bool, nargs='?', const=True, default=False)
     
     parsers.add_argument('--batch_size', type=int, default=64)
     parsers.add_argument('--test_batch_size', type=int, default=1)
