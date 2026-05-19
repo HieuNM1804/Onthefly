@@ -17,11 +17,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def is_vit_backbone(backbone_name):
-    return str(backbone_name).lower() in {"vit", "vits", "vit_s", "vit-small", "vit_small"}
+    return str(backbone_name).lower() in {"vit", "vit_b_16", "vit-b-16", "vit_b_32", "vit-b-32"}
 
 
 def get_backbone_feature_dim(backbone_name):
-    return 384 if str(backbone_name).lower() in {"vits", "vit_s", "vit-small", "vit_small"} else 768 if is_vit_backbone(backbone_name) else 2048
+    return 768 if is_vit_backbone(backbone_name) else 2048
 
 
 def build_backbone(args):
@@ -31,10 +31,8 @@ def build_backbone(args):
         return InceptionV3(args)
     if normalized_name == "resnet50":
         return ResNet50(args)
-    if normalized_name == "vit":
+    if normalized_name in {"vit", "vit_b_16", "vit-b-16", "vit_b_32", "vit-b-32"}:
         return ViT(args)
-    if normalized_name in {"vits", "vit_s", "vit-small", "vit_small"}:
-        return ViTS(args)
     raise ValueError(f"Unsupported backbone: {backbone_name}")
 
 class InceptionV3(nn.Module):
@@ -116,11 +114,15 @@ class ViT(nn.Module):
         super(ViT, self).__init__()
         self.args = args
 
-        vit_variant = getattr(args, "vit_variant", "b16")
-        if str(vit_variant).lower() in {"b32", "vit_b_32"}:
-            backbone = vit_b_32(weights=ViT_B_32_Weights.DEFAULT)
+        vit_variant = str(getattr(args, "vit_variant", "b16")).lower()
+        if vit_variant in {"b32", "vit_b_32", "vit-b-32"}:
+            self.model_name = "vit_b_32"
+            backbone = vit_b_32(weights=ViT_B_32_Weights.IMAGENET1K_V1)
+        elif vit_variant in {"b16", "vit_b_16", "vit-b-16"}:
+            self.model_name = "vit_b_16"
+            backbone = vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_V1)
         else:
-            backbone = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
+            raise ValueError(f"Unsupported vit_variant: {vit_variant}. Use b16 or b32.")
 
         # Giữ lại các layer của ViT (bỏ classification head)
         self.patch_embedding  = backbone.conv_proj       # Conv2d patch projection
@@ -155,26 +157,6 @@ class ViT(nn.Module):
             param.requires_grad = False
 
 
-class ViTS(nn.Module):
-    def __init__(self, args):
-        super(ViTS, self).__init__()
-        try:
-            import timm
-        except ImportError as exc:
-            raise ImportError("ViTS requires timm. Install it with: pip install timm") from exc
-
-        self.args = args
-        self.model_name = getattr(args, "vits_model_name", "vit_small_patch16_224.augreg_in1k")
-        self.model = timm.create_model(self.model_name, pretrained=True, num_classes=0)
-        self.hidden_dim = self.model.num_features
-
-    def forward(self, x):
-        return F.normalize(self.model(x), dim=-1)
-
-    def fix_weights(self):
-        for param in self.parameters():
-            param.requires_grad = False
-            
 class ResNet50(nn.Module):
     def __init__(self, args):
         super(ResNet50, self).__init__()

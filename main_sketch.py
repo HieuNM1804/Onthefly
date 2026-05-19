@@ -39,7 +39,7 @@ def load_stage2_from_baseline(model, args):
         baseline_state = load_checkpoint(pretrained_path)
         model.load_state_dict(baseline_state, strict=False)
         load_projector_from_prefix(model.attn.proj, baseline_state, "sketch_linear.")
-        print(f"Loaded ViTS baseline checkpoint: {pretrained_path}")
+        print(f"Loaded ViT baseline checkpoint: {pretrained_path}")
         return
 
     if not os.path.isdir(pretrained_path):
@@ -56,15 +56,14 @@ def load_stage2_from_baseline(model, args):
     model.linear.load_state_dict(linear_state['linear'])
     model.sketch_linear.load_state_dict(linear_state['sketch_linear'])
     model.attn.proj.load_state_dict(linear_state['sketch_linear'], strict=False)
-    print(f"Loaded ViTS split checkpoint directory: {pretrained_path}")
+    print(f"Loaded ViT split checkpoint directory: {pretrained_path}")
 
 
 if __name__ == "__main__":
     parsers = argparse.ArgumentParser(description='Baseline Fine-Grained SBIR model')
-    parsers.add_argument('--backbone', type=str, default='ViTS', help="InceptionV3/ViT/ViTS/ResNet50")
-    parsers.add_argument('--vit_variant', type=str, default='b16', help="b16/b32 for torchvision ViT")
-    parsers.add_argument('--vits_model_name', type=str, default='vit_small_patch16_224.augreg_in1k',
-                         help="timm ViT-S ImageNet checkpoint")
+    parsers.add_argument('--backbone', type=str, default='ViT', help="InceptionV3/ViT/ResNet50")
+    parsers.add_argument('--vit_variant', type=str, default='b16',
+                         help="b16 or b32 for torchvision ViT-B ImageNet-1K")
     parsers.add_argument('--dataset_name', type=str, default='ShoeV2')
     parsers.add_argument('--output_size', type=int, default=64)
     parsers.add_argument('--num_heads', type=int, default=8)

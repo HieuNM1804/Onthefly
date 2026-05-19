@@ -10,10 +10,11 @@ Illustration of our method’s capability to retrieve the target photo (top-10 l
 ## Datasets
 QMUL-Shoe-V2 and QMUL-Chair-V2 dataset was used.
 
-## Kaggle ViTS Training
+## Kaggle ViT Training
 
-The current default encoder is `ViTS`, using the ImageNet-1k pretrained
-`vit_small_patch16_224.augreg_in1k` checkpoint from `timm`.
+The current default encoder is torchvision `ViT-B/16` with official
+`IMAGENET1K_V1` weights. Set `--vit_variant b32` to use torchvision
+`ViT-B/32` with official `IMAGENET1K_V1` weights instead.
 
 ```bash
 git clone https://github.com/HieuNM1804/Onthefly.git
@@ -29,26 +30,26 @@ SAVE_DIR=/kaggle/working
 DATASET_NAME=ChairV2
 ```
 
-Train the ViTS baseline:
+Train the ViT baseline:
 
 ```bash
 python main_baseline.py \
   --dataset_name ${DATASET_NAME} \
-  --backbone ViTS \
-  --vits_model_name vit_small_patch16_224.augreg_in1k \
+  --backbone ViT \
+  --vit_variant b16 \
   --root_dir ${ROOT_DIR} \
   --save_dir ${SAVE_DIR} \
   --batch_size 64 \
   --epochs 200
 ```
 
-Fine-tune the same ViTS model with Triplet + InfoNCE:
+Fine-tune the same ViT model with Triplet + InfoNCE:
 
 ```bash
 python main_baseline.py \
   --dataset_name ${DATASET_NAME} \
-  --backbone ViTS \
-  --vits_model_name vit_small_patch16_224.augreg_in1k \
+  --backbone ViT \
+  --vit_variant b16 \
   --root_dir ${ROOT_DIR} \
   --save_dir ${SAVE_DIR} \
   --batch_size 28 \
@@ -60,13 +61,13 @@ python main_baseline.py \
   --lr 0.00001
 ```
 
-Train stage 2 with the ViTS checkpoints saved by the baseline stage:
+Train stage 2 with the ViT checkpoints saved by the baseline stage:
 
 ```bash
 python main_sketch.py \
   --dataset_name ${DATASET_NAME} \
-  --backbone ViTS \
-  --vits_model_name vit_small_patch16_224.augreg_in1k \
+  --backbone ViT \
+  --vit_variant b16 \
   --root_dir ${ROOT_DIR} \
   --save_dir ${SAVE_DIR} \
   --pretrained_dir ${SAVE_DIR} \
