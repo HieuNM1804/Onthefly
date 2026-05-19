@@ -22,6 +22,7 @@ if __name__ == "__main__":
     parsers.add_argument('--backbone', type=str, default='ViT', help="InceptionV3/ViT/ResNet50")
     parsers.add_argument('--vit_variant', type=str, default='b16',
                          help="b16 or b32 for torchvision ViT-B ImageNet-1K")
+    parsers.add_argument('--vit_pool', type=str, default='cls_mean', help="cls/mean/cls_mean")
     parsers.add_argument('--dataset_name', type=str, default='ShoeV2')
     parsers.add_argument('--output_size', type=int, default=64)
     parsers.add_argument('--num_heads', type=int, default=8)
@@ -43,6 +44,10 @@ if __name__ == "__main__":
     parsers.add_argument('--temperature', default=0.07, type=float, help='softmax temperature (default: 0.07)')
     parsers.add_argument('--threads', type=int, default=4)
     parsers.add_argument('--lr', type=float, default=0.0001)
+    parsers.add_argument('--backbone_lr', type=float, default=0.0,
+                         help="ViT backbone lr. If 0, use lr * 0.1")
+    parsers.add_argument('--weight_decay', type=float, default=0.05)
+    parsers.add_argument('--grad_clip', type=float, default=1.0)
     parsers.add_argument('--epochs', type=int, default=200)
     
     args = parsers.parse_args()

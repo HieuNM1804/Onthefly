@@ -64,6 +64,7 @@ if __name__ == "__main__":
     parsers.add_argument('--backbone', type=str, default='ViT', help="InceptionV3/ViT/ResNet50")
     parsers.add_argument('--vit_variant', type=str, default='b16',
                          help="b16 or b32 for torchvision ViT-B ImageNet-1K")
+    parsers.add_argument('--vit_pool', type=str, default='cls_mean', help="cls/mean/cls_mean")
     parsers.add_argument('--dataset_name', type=str, default='ShoeV2')
     parsers.add_argument('--output_size', type=int, default=64)
     parsers.add_argument('--num_heads', type=int, default=8)

@@ -62,12 +62,15 @@ python main_baseline.py \
   --dataset_name ${DATASET_NAME} \
   --backbone ViT \
   --vit_variant b16 \
+  --vit_pool cls_mean \
   --root_dir ${ROOT_DIR} \
   --save_dir ${SAVE_DIR} \
   --batch_size 64 \
   --epochs 200 \
   --use_info False \
-  --alpha 1
+  --alpha 1 \
+  --backbone_lr 0.00001 \
+  --lr 0.0001
 ```
 
 ### Stage 1.5: fine-tune Triplet + InfoNCE
@@ -87,6 +90,7 @@ python main_baseline.py \
   --dataset_name ${DATASET_NAME} \
   --backbone ViT \
   --vit_variant b16 \
+  --vit_pool cls_mean \
   --root_dir ${ROOT_DIR} \
   --save_dir ${SAVE_DIR} \
   --batch_size 28 \
@@ -95,6 +99,7 @@ python main_baseline.py \
   --epochs 25 \
   --use_info True \
   --alpha 0.1 \
+  --backbone_lr 0.000001 \
   --lr 0.00001
 ```
 
@@ -110,6 +115,7 @@ python main_sketch.py \
   --dataset_name ${DATASET_NAME} \
   --backbone ViT \
   --vit_variant b16 \
+  --vit_pool cls_mean \
   --root_dir ${ROOT_DIR} \
   --save_dir ${SAVE_DIR} \
   --pretrained_dir ${SAVE_DIR} \
@@ -117,3 +123,6 @@ python main_sketch.py \
   --epochs 100 \
   --steps 20
 ```
+
+For ViT, prefer `b16` over `b32` for sketches. `b32` only gives a 7x7 patch
+grid at 224px, which is usually too coarse for fine-grained sketch details.

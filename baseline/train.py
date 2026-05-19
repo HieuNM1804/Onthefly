@@ -116,6 +116,22 @@ def save_component_states(model, save_dir, dataset_name, rank_name, update_stage
         torch.save(attention_state, os.path.join(save_dir, f"{dataset_name}_attention.pth"))
         torch.save(linear_state, os.path.join(save_dir, f"{dataset_name}_linear.pth"))
 
+
+def get_optimizer(model, args):
+    if getattr(model, "is_vit", False):
+        backbone_lr = args.backbone_lr if args.backbone_lr > 0 else args.lr * 0.1
+        return optim.AdamW([
+            {'params': model.sample_embedding_network.parameters(), 'lr': backbone_lr},
+            {'params': model.sketch_embedding_network.parameters(), 'lr': backbone_lr},
+            {'params': model.linear.parameters(), 'lr': args.lr},
+            {'params': model.sketch_linear.parameters(), 'lr': args.lr},
+            {'params': model.attention.parameters(), 'lr': args.lr},
+            {'params': model.sketch_attention.parameters(), 'lr': args.lr},
+        ], weight_decay=args.weight_decay)
+
+    return optim.Adam(params=model.parameters(), lr=args.lr)
+
+
 def train_model(model, args):
     model = model.to(device)
     dataloader_train, dataloader_test = get_dataloader(args)
@@ -126,7 +142,7 @@ def train_model(model, args):
     
     lr = args.lr
     # loss_fn = nn.TripletMarginLoss(margin=args.margin)
-    optimizer = optim.Adam(params=model.parameters(), lr=lr)
+    optimizer = get_optimizer(model, args)
     # optimizer = optim.AdamW([
     #     {'params': model.sample_embedding_network.parameters(), 'lr': lr},
     #     {'params': model.sketch_embedding_network.parameters(), 'lr': lr},
@@ -145,6 +161,8 @@ def train_model(model, args):
             features = model(batch_data)
             loss = loss_fn(args, features)
             loss.backward()
+            if getattr(model, "is_vit", False) and args.grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
             optimizer.step()
 
             losses.append(loss.item())

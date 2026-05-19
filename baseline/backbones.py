@@ -123,6 +123,7 @@ class ViT(nn.Module):
             backbone = vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_V1)
         else:
             raise ValueError(f"Unsupported vit_variant: {vit_variant}. Use b16 or b32.")
+        self.pool = str(getattr(args, "vit_pool", "cls_mean")).lower()
 
         # Giữ lại các layer của ViT (bỏ classification head)
         self.patch_embedding  = backbone.conv_proj       # Conv2d patch projection
@@ -149,8 +150,18 @@ class ViT(nn.Module):
         x = self.ln(x)
 
         cls_token = x[:, 0, :]
+        patch_tokens = x[:, 1:, :]
 
-        return F.normalize(cls_token, dim=-1)
+        if self.pool == "cls":
+            output = cls_token
+        elif self.pool == "mean":
+            output = patch_tokens.mean(dim=1)
+        elif self.pool == "cls_mean":
+            output = 0.5 * (cls_token + patch_tokens.mean(dim=1))
+        else:
+            raise ValueError(f"Unsupported vit_pool: {self.pool}. Use cls, mean, or cls_mean.")
+
+        return F.normalize(output, dim=-1)
 
     def fix_weights(self):
         for param in self.parameters():
