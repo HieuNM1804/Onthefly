@@ -70,7 +70,11 @@ python main_baseline.py \
   --use_info False \
   --alpha 1 \
   --backbone_lr 0.00001 \
-  --lr 0.0001
+  --lr 0.0001 \
+  --use_scheduler True \
+  --scheduler_metric top10 \
+  --scheduler_patience 10 \
+  --gamma 0.5
 ```
 
 ### Stage 1.5: fine-tune Triplet + InfoNCE
@@ -100,7 +104,11 @@ python main_baseline.py \
   --use_info True \
   --alpha 0.1 \
   --backbone_lr 0.000001 \
-  --lr 0.00001
+  --lr 0.00001 \
+  --use_scheduler True \
+  --scheduler_metric top10 \
+  --scheduler_patience 5 \
+  --gamma 0.5
 ```
 
 ### Stage 2: Stroke Self-Attention Triplet loss

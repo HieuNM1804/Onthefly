@@ -132,6 +132,36 @@ def get_optimizer(model, args):
     return optim.Adam(params=model.parameters(), lr=args.lr)
 
 
+def get_scheduler(optimizer, args):
+    if not args.use_scheduler:
+        return None
+
+    mode = "min" if args.scheduler_metric == "loss" else "max"
+    return optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode=mode,
+        factor=args.gamma,
+        patience=args.scheduler_patience,
+        min_lr=args.scheduler_min_lr,
+    )
+
+
+def get_scheduler_value(args, top1_eval, top5_eval, top10_eval, avg_loss):
+    metric_values = {
+        "top1": top1_eval,
+        "top5": top5_eval,
+        "top10": top10_eval,
+        "loss": avg_loss,
+    }
+    if args.scheduler_metric not in metric_values:
+        raise ValueError("scheduler_metric must be one of: top1, top5, top10, loss")
+    return metric_values[args.scheduler_metric]
+
+
+def get_lrs(optimizer):
+    return [group["lr"] for group in optimizer.param_groups]
+
+
 def train_model(model, args):
     model = model.to(device)
     dataloader_train, dataloader_test = get_dataloader(args)
@@ -143,6 +173,7 @@ def train_model(model, args):
     lr = args.lr
     # loss_fn = nn.TripletMarginLoss(margin=args.margin)
     optimizer = get_optimizer(model, args)
+    scheduler = get_scheduler(optimizer, args)
     # optimizer = optim.AdamW([
     #     {'params': model.sample_embedding_network.parameters(), 'lr': lr},
     #     {'params': model.sketch_embedding_network.parameters(), 'lr': lr},
@@ -170,6 +201,10 @@ def train_model(model, args):
         
         top1_eval, top5_eval, top10_eval = evaluate_model(
             model, dataloader_test, args)
+
+        if scheduler is not None:
+            scheduler_value = get_scheduler_value(args, top1_eval, top5_eval, top10_eval, avg_loss)
+            scheduler.step(scheduler_value)
             
         if top5_eval > top5:
             top5 = top5_eval
@@ -189,7 +224,9 @@ def train_model(model, args):
         print('Top 5 accuracy : {:.5f}'.format(top5_eval))
         print('Top 10 accuracy: {:.5f}'.format(top10_eval))
         print('Loss:            {:.5f}'.format(avg_loss))
+        print('LR:              {}'.format(', '.join('{:.2e}'.format(lr) for lr in get_lrs(optimizer))))
         
         with open(os.path.join(args.save_dir, filename), "a") as f:
-            f.write("Epoch {:d} | Top1: {:.5f} | Top5: {:.5f} | Top10: {:.5f} | Loss: {:.5f}\n".format(
-                i_epoch+1, top1_eval, top5_eval, top10_eval, avg_loss))
+            f.write("Epoch {:d} | Top1: {:.5f} | Top5: {:.5f} | Top10: {:.5f} | Loss: {:.5f} | LR: {}\n".format(
+                i_epoch+1, top1_eval, top5_eval, top10_eval, avg_loss,
+                ','.join('{:.8g}'.format(lr) for lr in get_lrs(optimizer))))
