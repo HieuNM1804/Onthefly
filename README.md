@@ -51,7 +51,11 @@ SAVE_DIR=/kaggle/working
 DATASET_NAME=ChairV2
 ```
 
-Train the ViT baseline:
+### Stage 1: baseline Triplet loss
+
+This matches `on-the-fly-resnet.ipynb`: train the baseline for 200 epochs
+without InfoNCE. `--use_info False` and `--alpha 1` make the loss pure
+Triplet Margin Loss.
 
 ```bash
 python main_baseline.py \
@@ -61,10 +65,22 @@ python main_baseline.py \
   --root_dir ${ROOT_DIR} \
   --save_dir ${SAVE_DIR} \
   --batch_size 64 \
-  --epochs 200
+  --epochs 200 \
+  --use_info False \
+  --alpha 1
 ```
 
-Fine-tune the same ViT model with Triplet + InfoNCE:
+### Stage 1.5: fine-tune Triplet + InfoNCE
+
+This matches `on-the-fly-resnet-2.ipynb`: load the best baseline checkpoint
+and fine-tune for 25 epochs with InfoNCE enabled. In `baseline/utils.py`,
+the loss is:
+
+```text
+total_loss = alpha * TripletLoss + (1 - alpha) * InfoNCE
+```
+
+With `--alpha 0.1`, this is 10% Triplet Loss and 90% InfoNCE.
 
 ```bash
 python main_baseline.py \
@@ -82,7 +98,12 @@ python main_baseline.py \
   --lr 0.00001
 ```
 
-Train stage 2 with the ViT checkpoints saved by the baseline stage:
+### Stage 2: Stroke Self-Attention Triplet loss
+
+This matches `on-the-fly-resnet-2-stage-2.ipynb`: load the stage 1.5 ViT
+checkpoint parts and train only the Stroke Self-Attention module on partial
+sketches. This stage uses `TripletMarginLoss` in `phase2/train.py`; it does
+not use `--use_info`.
 
 ```bash
 python main_sketch.py \
