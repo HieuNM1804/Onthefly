@@ -22,6 +22,27 @@ cd Onthefly
 pip install -q -r requirements.txt
 ```
 
+If Kaggle gives you a Tesla P100, install a PyTorch CUDA 11.8 build before
+running the training cells. Newer Kaggle PyTorch builds may only include
+`sm_70+` kernels, while P100 requires `sm_60`.
+
+```bash
+pip uninstall -y torch torchvision torchaudio
+pip install -q torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 \
+  --index-url https://download.pytorch.org/whl/cu118
+```
+
+Restart the Kaggle session/kernel after reinstalling PyTorch, then verify:
+
+```python
+import torch
+print(torch.__version__)
+print(torch.version.cuda)
+print(torch.cuda.get_device_name(0))
+print(torch.cuda.get_device_capability(0))
+print(torch.cuda.get_arch_list())
+```
+
 Set the dataset root to the directory that contains `ChairV2` or `ShoeV2`:
 
 ```bash
