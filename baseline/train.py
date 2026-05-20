@@ -118,18 +118,32 @@ def save_component_states(model, save_dir, dataset_name, rank_name, update_stage
 
 
 def get_optimizer(model, args):
+    def trainable_params(parameters):
+        return [param for param in parameters if param.requires_grad]
+
+    def add_group(param_groups, parameters, lr):
+        params = trainable_params(parameters)
+        if params:
+            param_groups.append({'params': params, 'lr': lr})
+
     if getattr(model, "is_vit", False):
         backbone_lr = args.backbone_lr if args.backbone_lr > 0 else args.lr * 0.1
-        return optim.AdamW([
-            {'params': model.sample_embedding_network.parameters(), 'lr': backbone_lr},
-            {'params': model.sketch_embedding_network.parameters(), 'lr': backbone_lr},
-            {'params': model.linear.parameters(), 'lr': args.lr},
-            {'params': model.sketch_linear.parameters(), 'lr': args.lr},
-            {'params': model.attention.parameters(), 'lr': args.lr},
-            {'params': model.sketch_attention.parameters(), 'lr': args.lr},
-        ], weight_decay=args.weight_decay)
+        param_groups = []
+        add_group(param_groups, model.sample_embedding_network.parameters(), backbone_lr)
+        add_group(param_groups, model.sketch_embedding_network.parameters(), backbone_lr)
+        add_group(param_groups, model.linear.parameters(), args.lr)
+        add_group(param_groups, model.sketch_linear.parameters(), args.lr)
+        add_group(param_groups, model.attention.parameters(), args.lr)
+        add_group(param_groups, model.sketch_attention.parameters(), args.lr)
+        return optim.AdamW(param_groups, weight_decay=args.weight_decay)
 
-    return optim.Adam(params=model.parameters(), lr=args.lr)
+    return optim.Adam(params=trainable_params(model.parameters()), lr=args.lr)
+
+
+def count_parameters(model):
+    total = sum(param.numel() for param in model.parameters())
+    trainable = sum(param.numel() for param in model.parameters() if param.requires_grad)
+    return total, trainable
 
 
 def get_scheduler(optimizer, args):
@@ -174,6 +188,8 @@ def train_model(model, args):
     # loss_fn = nn.TripletMarginLoss(margin=args.margin)
     optimizer = get_optimizer(model, args)
     scheduler = get_scheduler(optimizer, args)
+    total_params, trainable_params = count_parameters(model)
+    print(f"Parameters: trainable {trainable_params:,} / total {total_params:,}")
     # optimizer = optim.AdamW([
     #     {'params': model.sample_embedding_network.parameters(), 'lr': lr},
     #     {'params': model.sketch_embedding_network.parameters(), 'lr': lr},

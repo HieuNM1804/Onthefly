@@ -134,6 +134,39 @@ class ViT(nn.Module):
         self.ln               = backbone.encoder.ln      # LayerNorm cuối
 
         self.hidden_dim = 768
+        self.set_trainable_layers(
+            trainable_layers=getattr(args, "vit_trainable_layers", -1),
+            train_patch_embed=getattr(args, "vit_train_patch_embed", False),
+        )
+
+    def set_trainable_layers(self, trainable_layers=-1, train_patch_embed=False):
+        trainable_layers = int(trainable_layers)
+        if trainable_layers < 0:
+            for param in self.parameters():
+                param.requires_grad = True
+            return
+
+        for param in self.parameters():
+            param.requires_grad = False
+
+        if trainable_layers == 0:
+            return
+
+        encoder_blocks = list(self.encoder_layers.children())
+        trainable_layers = min(trainable_layers, len(encoder_blocks))
+        for block in encoder_blocks[-trainable_layers:]:
+            for param in block.parameters():
+                param.requires_grad = True
+
+        for param in self.ln.parameters():
+            param.requires_grad = True
+
+        self.class_token.requires_grad = True
+        self.pos_embedding.requires_grad = True
+
+        if train_patch_embed:
+            for param in self.patch_embedding.parameters():
+                param.requires_grad = True
 
     def forward(self, x):
         B = x.shape[0]

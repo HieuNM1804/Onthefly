@@ -63,6 +63,7 @@ python main_baseline.py \
   --backbone ViT \
   --vit_variant b16 \
   --vit_pool cls_mean \
+  --vit_trainable_layers 2 \
   --root_dir ${ROOT_DIR} \
   --save_dir ${SAVE_DIR} \
   --batch_size 64 \
@@ -95,6 +96,7 @@ python main_baseline.py \
   --backbone ViT \
   --vit_variant b16 \
   --vit_pool cls_mean \
+  --vit_trainable_layers 2 \
   --root_dir ${ROOT_DIR} \
   --save_dir ${SAVE_DIR} \
   --batch_size 28 \
@@ -134,3 +136,15 @@ python main_sketch.py \
 
 For ViT, prefer `b16` over `b32` for sketches. `b32` only gives a 7x7 patch
 grid at 224px, which is usually too coarse for fine-grained sketch details.
+
+ViT fine-tuning can be limited with `--vit_trainable_layers`:
+
+```text
+-1  train the full ViT backbone
+ 0  freeze the ViT backbone and train only the projection heads
+ N  train only the last N transformer blocks, final LayerNorm, CLS token,
+    positional embedding, and projection heads
+```
+
+For P100, start with `--vit_trainable_layers 2` or `0` if memory or
+overfitting is a problem.
